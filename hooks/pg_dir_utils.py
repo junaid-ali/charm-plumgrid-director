@@ -113,7 +113,7 @@ def configure_analyst_opsvm():
     sigmund_status = ns_enter \
         + '/usr/bin/service plumgrid-sigmund status'
     sigmund_autoboot = ns_enter \
-        + '/usr/src/sigmund-configure --ip {0} --start --autoboot' \
+        + '/usr/bin/sigmund-configure --ip {0} --start --autoboot' \
         .format(config('opsvm-ip'))
     try:
         status = subprocess.check_output(sigmund_status, shell=True)
