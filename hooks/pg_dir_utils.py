@@ -103,6 +103,29 @@ def configure_pg_sources():
         log('Unable to update /etc/apt/sources.list')
 
 
+def configure_analyst_opsvm():
+    '''
+    Configures Anaylyst for OPSVM
+    '''
+    ns_enter = ('/opt/local/bin/nsenter -t $(ps ho pid --ppid '
+                '$(cat /var/run/libvirt/lxc/plumgrid.pid)) -m -n -u -i -p ')
+    sigmund_stop = ns_enter + '/usr/bin/service plumgrid-sigmund stop'
+    sigmund_status = ns_enter \
+        + '/usr/bin/service plumgrid-sigmund status'
+    sigmund_autoboot = ns_enter \
+        + '/usr/src/sigmund-configure --ip {0} --start --autoboot' \
+        .format(config('opsvm-ip'))
+    try:
+        status = subprocess.check_output(sigmund_status, shell=True)
+        if 'start/running' in status:
+            if subprocess.call(sigmund_stop, shell=True):
+                log('plumgrid-sigmund couldn\'t be stopped!')
+                return
+        subprocess.check_call(sigmund_autoboot, shell=True)
+    except:
+        log('plumgrid-sigmund couldn\'t be started!')
+
+
 def determine_packages():
     '''
     Returns list of packages required by PLUMgrid director as specified
