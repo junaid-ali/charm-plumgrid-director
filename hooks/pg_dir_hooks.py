@@ -160,7 +160,6 @@ def start():
     '''
     This hook is run when the charm is started.
     '''
-    time.sleep(10)
     configure_analyst_opsvm()
     if config('plumgrid-license-key') is not None:
         count = 0

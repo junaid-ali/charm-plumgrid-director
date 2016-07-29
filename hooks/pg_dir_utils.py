@@ -107,6 +107,8 @@ def configure_analyst_opsvm():
     '''
     Configures Anaylyst for OPSVM
     '''
+    if not service_running('plumgrid'):
+        restart_pg()
     ns_enter = ('/opt/local/bin/nsenter -t $(ps ho pid --ppid '
                 '$(cat /var/run/libvirt/lxc/plumgrid.pid)) -m -n -u -i -p ')
     sigmund_stop = ns_enter + '/usr/bin/service plumgrid-sigmund stop'
