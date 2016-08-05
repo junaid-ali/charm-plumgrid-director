@@ -109,12 +109,12 @@ def configure_analyst_opsvm():
     '''
     if not service_running('plumgrid'):
         restart_pg()
-    ns_enter = ('/opt/local/bin/nsenter -t $(ps ho pid --ppid '
+    NS_ENTER = ('/opt/local/bin/nsenter -t $(ps ho pid --ppid '
                 '$(cat /var/run/libvirt/lxc/plumgrid.pid)) -m -n -u -i -p ')
-    sigmund_stop = ns_enter + '/usr/bin/service plumgrid-sigmund stop'
-    sigmund_status = ns_enter \
+    sigmund_stop = NS_ENTER + '/usr/bin/service plumgrid-sigmund stop'
+    sigmund_status = NS_ENTER \
         + '/usr/bin/service plumgrid-sigmund status'
-    sigmund_autoboot = ns_enter \
+    sigmund_autoboot = NS_ENTER \
         + '/usr/bin/sigmund-configure --ip {0} --start --autoboot' \
         .format(config('opsvm-ip'))
     try:
