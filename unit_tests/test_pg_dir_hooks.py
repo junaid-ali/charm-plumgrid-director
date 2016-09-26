@@ -34,7 +34,8 @@ TO_PATCH = [
     'load_iptables',
     'status_set',
     'configure_analyst_opsvm',
-    'sapi_post_zone_info'
+    'sapi_post_zone_info',
+    'disable_apparmor_libvirt'
 ]
 NEUTRON_CONF_DIR = "/etc/neutron"
 

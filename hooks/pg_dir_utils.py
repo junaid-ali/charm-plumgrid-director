@@ -32,7 +32,8 @@ from charmhelpers.core.host import (
     service_stop,
     service_running,
     path_hash,
-    set_nic_mtu
+    set_nic_mtu,
+    service_restart
 )
 from charmhelpers.fetch import (
     apt_cache,
