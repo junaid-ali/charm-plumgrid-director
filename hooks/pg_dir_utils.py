@@ -178,12 +178,6 @@ def disable_apparmor_libvirt():
     apt_install('cgroup-bin')
     _exec_cmd(['sudo', 'aa-disable', '/usr/sbin/libvirtd'],
               error_msg='Error disabling AppArmor profile of libvirtd')
-    _exec_cmd(['sed', '-i', 's/libvirtd/libvirt-bin/g',
-              '/usr/lib/systemd/system/plumgrid.service'],
-              error_msg='plumgrid.service not found!')
-    _exec_cmd(['sed', '-i', 's/usr\///g',
-              '/opt/pg/scripts/systemd_post_stop.sh'],
-              error_msg='File \'systemd_post_stop.sh\' couldn\'t be found!')
     disable_apparmor()
     service_restart('libvirt-bin')
 
