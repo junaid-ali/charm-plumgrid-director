@@ -188,10 +188,10 @@ def start():
     if config('plumgrid-license-key') is not None:
         count = 0
         while (count < 10):
+            time.sleep(15)
             if post_pg_license():
                 break
             count += 1
-            time.sleep(15)
         if count == 10:
             raise ValueError("Error occurred while posting plumgrid license"
                              "key. Please check plumgrid services.")

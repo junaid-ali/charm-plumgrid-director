@@ -417,9 +417,6 @@ def post_pg_license():
     '''
     Posts PLUMgrid License if it hasnt been posted already.
     '''
-    if not config('enable-sapi'):
-        log('Solutions API support is disabled!')
-        return 1
     key = config('plumgrid-license-key')
     if key is None:
         log('PLUMgrid License Key not specified')
@@ -537,6 +534,9 @@ def sapi_post_zone_info():
     '''
     Posts zone information to solutions api server
     '''
+    if not config('enable-sapi'):
+        log('Solutions API support is disabled!')
+        return 1
     sol_name = '"solution_name":"Ubuntu OpenStack"'
     release = config('openstack-release')
     for key, value in OPENSTACK_RELEASE_VERS.iteritems():
