@@ -32,7 +32,8 @@ from charmhelpers.core.host import (
     service_stop,
     service_running,
     path_hash,
-    set_nic_mtu
+    set_nic_mtu,
+    service_restart
 )
 from charmhelpers.fetch import (
     apt_cache,
@@ -167,6 +168,36 @@ def determine_packages():
                     % (tag, pkg)
                 raise ValueError(error_msg)
     return pkgs
+
+
+def disable_apparmor_libvirt():
+    '''
+    Disables Apparmor profile of libvirtd.
+    '''
+    apt_install('apparmor-utils')
+    apt_install('cgroup-bin')
+    _exec_cmd(['sudo', 'aa-disable', '/usr/sbin/libvirtd'],
+              error_msg='Error disabling AppArmor profile of libvirtd')
+    disable_apparmor()
+    service_restart('libvirt-bin')
+
+
+def disable_apparmor():
+    '''
+    Disables Apparmor security for lxc.
+    '''
+    try:
+        f = open(LXC_CONF, 'r')
+    except IOError:
+        log('Libvirt not installed yet')
+        return 0
+    filedata = f.read()
+    f.close()
+    newdata = filedata.replace("security_driver = \"apparmor\"",
+                               "#security_driver = \"apparmor\"")
+    f = open(LXC_CONF, 'w')
+    f.write(newdata)
+    f.close()
 
 
 def register_configs(release=None):
@@ -386,6 +417,9 @@ def post_pg_license():
     '''
     Posts PLUMgrid License if it hasnt been posted already.
     '''
+    if not config('enable-sapi'):
+        log('Solutions API support is disabled!')
+        return 1
     key = config('plumgrid-license-key')
     if key is None:
         log('PLUMgrid License Key not specified')
@@ -423,6 +457,9 @@ def sapi_post_ips():
     """
     Posts PLUMgrid nodes IPs to solutions api server.
     """
+    if not config('enable-sapi'):
+        log('Solutions API support is disabled!')
+        return 1
     pg_edge_ips = _pg_edge_ips()
     pg_dir_ips = _pg_dir_ips()
     pg_gateway_ips = _pg_gateway_ips()
@@ -474,6 +511,9 @@ def sapi_post_license():
     '''
     Posts PLUMgrid License to solutions api server
     '''
+    if not config('enable-sapi'):
+        log('Solutions API support is disabled!')
+        return 1
     username = '"user_name":' + '"{}"'.format(config('plumgrid-username'))
     password = '"password":' + '"{}"'.format(config('plumgrid-password'))
     license = '"license":' + '"{}"'.format(config('plumgrid-license-key'))
