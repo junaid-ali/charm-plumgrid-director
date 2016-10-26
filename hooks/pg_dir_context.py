@@ -98,8 +98,9 @@ class PGDirContext(context.NeutronContext):
 
         conf = config()
         pg_dir_ips = _pg_dir_ips()
+        from pg_dir_utils import get_unit_address
         pg_dir_ips.append(str(get_address_in_network(network=None,
-                          fallback=get_host_ip(unit_get('private-address')))))
+                          fallback=get_host_ip(get_unit_address()))))
         pg_dir_ips = sorted(pg_dir_ips)
         pg_ctxt['director_ips'] = pg_dir_ips
         dir_count = len(pg_dir_ips)
