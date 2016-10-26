@@ -32,8 +32,7 @@ from charmhelpers.core.host import (
     service_stop,
     service_running,
     path_hash,
-    set_nic_mtu,
-    service_restart
+    set_nic_mtu
 )
 from charmhelpers.fetch import (
     apt_cache,
@@ -170,48 +169,6 @@ def determine_packages():
     return pkgs
 
 
-def disable_apparmor_libvirt():
-    '''
-    Disables Apparmor profile of libvirtd.
-    '''
-    apt_install('apparmor-utils')
-    apt_install('cgroup-bin')
-    _exec_cmd(['sudo', 'aa-disable', '/usr/sbin/libvirtd'],
-              error_msg='Error disabling AppArmor profile of libvirtd')
-    disable_apparmor()
-    service_restart('libvirt-bin')
-
-
-def disable_apparmor():
-    '''
-    Disables Apparmor security for lxc.
-    '''
-    try:
-        f = open(LXC_CONF, 'r')
-    except IOError:
-        log('Libvirt not installed yet')
-        return 0
-    filedata = f.read()
-    f.close()
-    newdata = filedata.replace("security_driver = \"apparmor\"",
-                               "#security_driver = \"apparmor\"")
-    f = open(LXC_CONF, 'w')
-    f.write(newdata)
-    f.close()
-
-
-def get_unit_address():
-    '''
-    Returns the unit's PLUMgrid Management IP
-    '''
-    try:
-        # Using Juju 2.0 network spaces feature
-        return network_get_primary_address('internal')
-    except NotImplementedError:
-        # Falling back to private-address
-        return unit_get('private-address')
-
-
 def register_configs(release=None):
     '''
     Returns an object of the Openstack Tempating Class which contains the
@@ -307,10 +264,10 @@ def get_mgmt_interface():
     mgmt_interface = config('mgmt-interface')
     if not mgmt_interface:
         try:
-            return get_iface_from_addr(get_unit_address())
+            return get_iface_from_addr(unit_get('private-address'))
         except:
             for bridge_interface in get_bridges():
-                if (get_host_ip(get_unit_address())
+                if (get_host_ip(unit_get('private-address'))
                         in get_iface_addr(bridge_interface)):
                     return bridge_interface
     elif interface_exists(mgmt_interface):
@@ -318,7 +275,7 @@ def get_mgmt_interface():
     else:
         log('Provided managment interface %s does not exist'
             % mgmt_interface)
-        return get_iface_from_addr(get_unit_address())
+        return get_iface_from_addr(unit_get('private-address'))
 
 
 def fabric_interface_changed():
@@ -466,13 +423,10 @@ def sapi_post_ips():
     """
     Posts PLUMgrid nodes IPs to solutions api server.
     """
-    if not config('enable-sapi'):
-        log('Solutions API support is disabled!')
-        return 1
     pg_edge_ips = _pg_edge_ips()
     pg_dir_ips = _pg_dir_ips()
     pg_gateway_ips = _pg_gateway_ips()
-    pg_dir_ips.append(get_host_ip(get_unit_address()))
+    pg_dir_ips.append(get_host_ip(unit_get('private-address')))
     pg_edge_ips = '"edge_ips"' + ':' \
         + '"{}"'.format(','.join(str(i) for i in pg_edge_ips))
     pg_dir_ips = '"director_ips"' + ':' \
@@ -520,9 +474,6 @@ def sapi_post_license():
     '''
     Posts PLUMgrid License to solutions api server
     '''
-    if not config('enable-sapi'):
-        log('Solutions API support is disabled!')
-        return 1
     username = '"user_name":' + '"{}"'.format(config('plumgrid-username'))
     password = '"password":' + '"{}"'.format(config('plumgrid-password'))
     license = '"license":' + '"{}"'.format(config('plumgrid-license-key'))

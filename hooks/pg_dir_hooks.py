@@ -44,15 +44,14 @@ from pg_dir_utils import (
     configure_analyst_opsvm,
     sapi_post_ips,
     sapi_post_license,
-    sapi_post_zone_info,
-    disable_apparmor_libvirt
+    sapi_post_zone_info
 )
 
 hooks = Hooks()
 CONFIGS = register_configs()
 
 
-@hooks.hook('install.real')
+@hooks.hook()
 def install():
     '''
     Install hook is run when the charm is first deployed on a node.
@@ -65,7 +64,6 @@ def install():
     for pkg in pkgs:
         apt_install(pkg, options=['--force-yes'], fatal=True)
     load_iovisor()
-    disable_apparmor_libvirt()
     ensure_mtu()
     CONFIGS.write_all()
 
@@ -164,15 +162,14 @@ def config_changed():
         stop_pg()
     if (charm_config.changed('sapi-port') or
         charm_config.changed('lcm-ip') or
-        charm_config.changed('sapi-zone') or
-            charm_config.changed('enable-sapi')):
+            charm_config.changed('sapi-zone')):
         if is_leader():
             if is_ip(config('lcm-ip')):
                 sapi_post_zone_info()
             else:
                 raise ValueError('Invalid LCM IP specified!')
-            for rid in relation_ids('plumgrid'):
-                plumgrid_joined(rid)
+        for rid in relation_ids('plumgrid'):
+            plumgrid_joined(rid)
     ensure_mtu()
     CONFIGS.write_all()
     if not service_running('plumgrid'):

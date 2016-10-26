@@ -3,18 +3,12 @@ subordinate: false
 maintainer: Bilal Baqar <bbaqar@plumgrid.com>
 summary: "PLUMgrid IO Visor Director"
 description: |
-  PLUMgrid Director is the control plane of PLUMgrid ONS for OpenStack.
-  Configuration of the virtual network infrastructure for tenants is
-  done through the PLUMgrid Director. PLUMgrid Director is typically
+  The PLUMgrid Director is the control plane of PLUMgrid ONS for OpenStack.
+  The configuration of the virtual network infrastructure for tenants is
+  done through the PLUMgrid Director. The PLUMgrid Director is typically
   co-located on the OpenStack controller nodes.
 tags:
   - openstack
-series:
-  - xenial
-  - yakkety
-  #should I add trusty here as series too
-extra-bindings:
-  internal:
 requires:
   plumgrid-plugin:
     interface: plumgrid-plugin
