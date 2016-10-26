@@ -200,6 +200,18 @@ def disable_apparmor():
     f.close()
 
 
+def get_unit_address():
+    '''
+    Returns the unit's PLUMgrid Management IP
+    '''
+    try:
+        # Using Juju 2.0 network spaces feature
+        return network_get_primary_address('internal')
+    except NotImplementedError:
+        # Falling back to private-address
+        return unit_get('private-address')
+
+
 def register_configs(release=None):
     '''
     Returns an object of the Openstack Tempating Class which contains the
@@ -295,10 +307,10 @@ def get_mgmt_interface():
     mgmt_interface = config('mgmt-interface')
     if not mgmt_interface:
         try:
-            return get_iface_from_addr(unit_get('private-address'))
+            return get_iface_from_addr(get_unit_address())
         except:
             for bridge_interface in get_bridges():
-                if (get_host_ip(unit_get('private-address'))
+                if (get_host_ip(get_unit_address())
                         in get_iface_addr(bridge_interface)):
                     return bridge_interface
     elif interface_exists(mgmt_interface):
@@ -306,7 +318,7 @@ def get_mgmt_interface():
     else:
         log('Provided managment interface %s does not exist'
             % mgmt_interface)
-        return get_iface_from_addr(unit_get('private-address'))
+        return get_iface_from_addr(get_unit_address())
 
 
 def fabric_interface_changed():
@@ -417,9 +429,6 @@ def post_pg_license():
     '''
     Posts PLUMgrid License if it hasnt been posted already.
     '''
-    if not config('enable-sapi'):
-        log('Solutions API support is disabled!')
-        return 1
     key = config('plumgrid-license-key')
     if key is None:
         log('PLUMgrid License Key not specified')
@@ -463,7 +472,7 @@ def sapi_post_ips():
     pg_edge_ips = _pg_edge_ips()
     pg_dir_ips = _pg_dir_ips()
     pg_gateway_ips = _pg_gateway_ips()
-    pg_dir_ips.append(get_host_ip(unit_get('private-address')))
+    pg_dir_ips.append(get_host_ip(get_unit_address()))
     pg_edge_ips = '"edge_ips"' + ':' \
         + '"{}"'.format(','.join(str(i) for i in pg_edge_ips))
     pg_dir_ips = '"director_ips"' + ':' \
