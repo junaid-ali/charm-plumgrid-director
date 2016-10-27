@@ -15,6 +15,7 @@ series:
   #should I add trusty here as series too
 extra-bindings:
   internal:
+  fabric:
 requires:
   plumgrid-plugin:
     interface: plumgrid-plugin

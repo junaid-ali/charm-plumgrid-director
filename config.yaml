@@ -17,6 +17,7 @@ options:
     description: Public SSH key of PLUMgrid LCM which is running PG-Tools.
   mgmt-interface:
     type: string
+    default:
     description: The interface connected to PLUMgrid Managment network.
   fabric-interfaces:
     default: 'MANAGEMENT'
@@ -68,12 +69,6 @@ options:
     default: pgzone
     type: string
     description: Zone name used by Solutions API to get/post cloud information.
-  openstack-release:
-    default: kilo
-    type: string
-    description: |
-        OpenStack release to determine solution version that will be posted to
-        Solutions API server.
   enable-sapi:
     default: false
     type: boolean

@@ -45,7 +45,8 @@ from pg_dir_utils import (
     sapi_post_ips,
     sapi_post_license,
     sapi_post_zone_info,
-    disable_apparmor_libvirt
+    disable_apparmor_libvirt,
+    get_unit_address
 )
 
 hooks = Hooks()
@@ -70,13 +71,15 @@ def install():
     CONFIGS.write_all()
 
 
-@hooks.hook('director-relation-joined')
-@hooks.hook('director-relation-changed')
+@hooks.hook('director-relation-joined',
+            'director-relation-changed')
 @restart_on_change(restart_map())
-def dir_joined():
+def dir_joined(relation_id=None):
     '''
     This hook is run when a unit of director is added.
     '''
+    unit_ip = get_unit_address()
+    relation_set(relation_id=relation_id, unit_ip=unit_ip)
     if director_cluster_ready():
         ensure_mtu()
         CONFIGS.write_all()
@@ -114,6 +117,8 @@ def plumgrid_configs_joined(relation_id=None):
 
 
 @hooks.hook('config-changed')
+# TODO: Bilal's review on restart_on_change here
+@restart_on_change(restart_map())
 def config_changed():
     '''
     This hook is run when a config parameter is changed.

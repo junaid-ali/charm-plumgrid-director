@@ -17,6 +17,7 @@ from charmhelpers.core.hookenv import (
     log,
     config,
     unit_get,
+    network_get_primary_address,
     status_set
 )
 from charmhelpers.contrib.network.ip import (
@@ -200,13 +201,13 @@ def disable_apparmor():
     f.close()
 
 
-def get_unit_address():
+def get_unit_address(binding='internal'):
     '''
     Returns the unit's PLUMgrid Management IP
     '''
     try:
         # Using Juju 2.0 network spaces feature
-        return network_get_primary_address('internal')
+        return network_get_primary_address(binding)
     except NotImplementedError:
         # Falling back to private-address
         return unit_get('private-address')
@@ -309,6 +310,10 @@ def get_mgmt_interface():
         try:
             return get_iface_from_addr(get_unit_address())
         except:
+            # workaroud if get_unit_address returns hostname
+            # also workaround the curtin issue where the
+            # interface on which bridge is created also gets
+            # an ip
             for bridge_interface in get_bridges():
                 if (get_host_ip(get_unit_address())
                         in get_iface_addr(bridge_interface)):
@@ -344,6 +349,13 @@ def get_fabric_interface():
     fabric_interfaces = config('fabric-interfaces')
     if fabric_interfaces == 'MANAGEMENT':
         return get_mgmt_interface()
+    elif fabric_interfaces == 'BIND':
+        try:
+            return get_iface_from_addr(get_unit_address('fabric'))
+        except:
+            raise ValueError('Unable to get interface using \'fabric\' \
+                              binding! Ensure fabric interface has IP \
+                              assigned.')
     else:
         try:
             all_fabric_interfaces = json.loads(fabric_interfaces)
@@ -542,23 +554,31 @@ def sapi_post_license():
         log(POST_LICENSE)
 
 
-def sapi_post_zone_info():
+def get_pg_ons_version():
     '''
-    Posts zone information to solutions api server
+    Returns PG ONS version installed
     '''
-    sol_name = '"solution_name":"Ubuntu OpenStack"'
-    release = config('openstack-release')
-    for key, value in OPENSTACK_RELEASE_VERS.iteritems():
-        if release == value:
-            sol_version = value
-        else:
-            sol_version = 10
-    sol_version = '"solution_version":"{}"'.format(sol_version)
-    pg_ons_version = _exec_cmd_output(
+    return _exec_cmd_output(
         'dpkg -l | grep plumgrid | awk \'{print $3}\' | '
         'sed \'s/-/./\' | cut -f1 -d"-"',
         'Unable to obtain PG ONS version'
     ).replace('\n', '')
+
+
+def sapi_post_zone_info():
+    '''
+    Posts zone information to solutions api server
+    '''
+    if not config('enable-sapi'):
+        log('Solutions API support is disabled!')
+        return 1
+    sol_name = '"solution_name":"Ubuntu OpenStack"'
+    # TODO: get the release using relations with pg-edge or
+    # neutron-api-pg and then assign it to sol_version
+    # release = 'mitaka'
+    sol_version = 10
+    sol_version = '"solution_version":"{}"'.format(sol_version)
+    pg_ons_version = get_pg_ons_version()
     pg_ons_version = \
         '"pg_ons_version":"{}"'.format(pg_ons_version)
     hypervisor = '"hypervisor":"Ubuntu"'
@@ -666,6 +686,7 @@ def get_cidr_from_iface(interface):
 
 
 def director_cluster_ready():
+    print pg_dir_context._pg_dir_ips()
     dirs_count = len(pg_dir_context._pg_dir_ips())
     return True if dirs_count == 2 else False
 
