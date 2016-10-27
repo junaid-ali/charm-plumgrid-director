@@ -26,7 +26,8 @@ options:
        Interfaces that will provide fabric connectivity on the director nodes.
        Provided in form of json in a string. Default value is MANAGEMENT which
        will configure the management interface as the fabric interface on each
-       director.
+       director. If the charm is deployed with binding network spaces, setting
+       value, 'BIND', will auto extract fabric interface.
   network-device-mtu:
     type: string
     default: '1580'
