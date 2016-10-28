@@ -24,10 +24,6 @@ Instructions on using the charm:
 
 For plumgrid-director to work make the configuration in the neutron-api and neutron-api-plumgrid charms as specified in the configuration section below.
 
-# Known Limitations and Issues
-
-This charm currently doesn't support Ubuntu 16.04.
-
 # Configuration
 
 Example Config
