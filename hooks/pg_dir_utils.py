@@ -203,7 +203,7 @@ def disable_apparmor():
 
 def get_unit_address(binding='internal'):
     '''
-    Returns the unit's PLUMgrid Management IP
+    Returns the unit's PLUMgrid Management/Fabric IP
     '''
     try:
         # Using Juju 2.0 network spaces feature

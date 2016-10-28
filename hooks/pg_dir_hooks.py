@@ -96,7 +96,12 @@ def plumgrid_joined(relation_id=None):
     if not is_ip(opsvm_ip):
         raise ValueError('Invalid OPSVM IP specified!')
     else:
-        relation_set(relation_id=relation_id, opsvm_ip=opsvm_ip)
+        relation_settings = {
+            'opsvm_ip': opsvm_ip,
+            'dir_ip': get_unit_address(),
+        }
+        relation_set(relation_id=relation_id,
+                     relation_settings=relation_settings)
     if is_leader():
         sapi_post_ips()
 
