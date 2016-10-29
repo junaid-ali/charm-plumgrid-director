@@ -45,7 +45,6 @@ from pg_dir_utils import (
     sapi_post_ips,
     sapi_post_license,
     sapi_post_zone_info,
-    disable_apparmor_libvirt,
     get_unit_address
 )
 
@@ -66,7 +65,6 @@ def install():
     for pkg in pkgs:
         apt_install(pkg, options=['--force-yes'], fatal=True)
     load_iovisor()
-    disable_apparmor_libvirt()
     ensure_mtu()
     CONFIGS.write_all()
 

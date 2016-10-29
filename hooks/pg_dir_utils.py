@@ -33,8 +33,7 @@ from charmhelpers.core.host import (
     service_stop,
     service_running,
     path_hash,
-    set_nic_mtu,
-    service_restart
+    set_nic_mtu
 )
 from charmhelpers.fetch import (
     apt_cache,
@@ -50,7 +49,6 @@ from pg_dir_context import (
 )
 
 SOURCES_LIST = '/etc/apt/sources.list'
-LXC_CONF = '/etc/libvirt/lxc.conf'
 TEMPLATES = 'templates/'
 PG_LXC_DATA_PATH = '/var/lib/libvirt/filesystems/plumgrid-data'
 PG_LXC_PATH = '/var/lib/libvirt/filesystems/plumgrid'
@@ -63,14 +61,6 @@ PG_IFCS_CONF = '%s/conf/pg/ifcs.conf' % PG_LXC_DATA_PATH
 OPS_CONF = '%s/conf/etc/00-pg.conf' % PG_LXC_DATA_PATH
 AUTH_KEY_PATH = '%s/root/.ssh/authorized_keys' % PG_LXC_DATA_PATH
 TEMP_LICENSE_FILE = '/tmp/license'
-
-# Constant values for OpenStack releases as Canonical-Ubuntu
-# doesn't have any specific solution version associated
-OPENSTACK_RELEASE_VERS = {
-    'kilo': '10',
-    'liberty': '11',
-    'mitaka': '12'
-}
 
 BASE_RESOURCE_MAP = OrderedDict([
     (PG_KA_CONF, {
@@ -169,36 +159,6 @@ def determine_packages():
                     % (tag, pkg)
                 raise ValueError(error_msg)
     return pkgs
-
-
-def disable_apparmor_libvirt():
-    '''
-    Disables Apparmor profile of libvirtd.
-    '''
-    apt_install('apparmor-utils')
-    apt_install('cgroup-bin')
-    _exec_cmd(['sudo', 'aa-disable', '/usr/sbin/libvirtd'],
-              error_msg='Error disabling AppArmor profile of libvirtd')
-    disable_apparmor()
-    service_restart('libvirt-bin')
-
-
-def disable_apparmor():
-    '''
-    Disables Apparmor security for lxc.
-    '''
-    try:
-        f = open(LXC_CONF, 'r')
-    except IOError:
-        log('Libvirt not installed yet')
-        return 0
-    filedata = f.read()
-    f.close()
-    newdata = filedata.replace("security_driver = \"apparmor\"",
-                               "#security_driver = \"apparmor\"")
-    f = open(LXC_CONF, 'w')
-    f.write(newdata)
-    f.close()
 
 
 def get_unit_address(binding='internal'):
