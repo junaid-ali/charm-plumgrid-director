@@ -228,15 +228,16 @@ def restart_pg():
             raise ValueError("{} service couldn't be started!".format(service))
         else:
             if service_start('docker'):
-                time.sleep(5)
+                time.sleep(8)
                 start_pg()
                 status, service = service_running_pg()
                 if not status:
-                    status_set('Blocked', '{} service not \
+                    status_set('blocked', '{} service not \
                                not running'.format(service))
                     raise ValueError("{} service couldn't \
                                      be started!".format(service))
             else:
+                status_set('blocked', 'docker service not running')
                 raise ValueError("docker service couldn't be started!")
     status_set('active', 'Unit is ready')
 
