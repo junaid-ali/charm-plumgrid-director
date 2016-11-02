@@ -33,8 +33,7 @@ from charmhelpers.core.host import (
     service_stop,
     service_running,
     path_hash,
-    set_nic_mtu,
-    lsb_release
+    set_nic_mtu
 )
 from charmhelpers.fetch import (
     apt_cache,
@@ -51,16 +50,16 @@ from pg_dir_context import (
 
 SOURCES_LIST = '/etc/apt/sources.list'
 TEMPLATES = 'templates/'
-PG_DATA_PATH = '/var/lib/plumgrid/plumgrid-data'
+PG_LXC_DATA_PATH = '/var/lib/libvirt/filesystems/plumgrid-data'
 PG_LXC_PATH = '/var/lib/libvirt/filesystems/plumgrid'
-PG_CONF = '%s/conf/pg/plumgrid.conf' % PG_DATA_PATH
-PG_KA_CONF = '%s/conf/etc/keepalived.conf' % PG_DATA_PATH
-PG_DEF_CONF = '%s/conf/pg/nginx.conf' % PG_DATA_PATH
-PG_HN_CONF = '%s/conf/etc/hostname' % PG_DATA_PATH
-PG_HS_CONF = '%s/conf/etc/hosts' % PG_DATA_PATH
-PG_IFCS_CONF = '%s/conf/pg/ifcs.conf' % PG_DATA_PATH
-OPS_CONF = '%s/conf/etc/00-pg.conf' % PG_DATA_PATH
-AUTH_KEY_PATH = '%s/root/.ssh/authorized_keys' % PG_DATA_PATH
+PG_CONF = '%s/conf/pg/plumgrid.conf' % PG_LXC_DATA_PATH
+PG_KA_CONF = '%s/conf/etc/keepalived.conf' % PG_LXC_DATA_PATH
+PG_DEF_CONF = '%s/conf/pg/nginx.conf' % PG_LXC_DATA_PATH
+PG_HN_CONF = '%s/conf/etc/hostname' % PG_LXC_DATA_PATH
+PG_HS_CONF = '%s/conf/etc/hosts' % PG_LXC_DATA_PATH
+PG_IFCS_CONF = '%s/conf/pg/ifcs.conf' % PG_LXC_DATA_PATH
+OPS_CONF = '%s/conf/etc/00-pg.conf' % PG_LXC_DATA_PATH
+AUTH_KEY_PATH = '%s/root/.ssh/authorized_keys' % PG_LXC_DATA_PATH
 TEMP_LICENSE_FILE = '/tmp/license'
 
 BASE_RESOURCE_MAP = OrderedDict([
@@ -94,14 +93,6 @@ BASE_RESOURCE_MAP = OrderedDict([
     }),
 ])
 
-PG_DOCKERS = [
-    'plumgrid-util',
-    'plumgrid-logger',
-    'plumgrid-core',
-    'plumgrid-sal',
-    'plumgrid'
-]
-
 
 def configure_pg_sources():
     '''
@@ -117,6 +108,31 @@ def configure_pg_sources():
         sources.close()
     except IOError:
         log('Unable to update /etc/apt/sources.list')
+
+
+def configure_analyst_opsvm():
+    '''
+    Configures Anaylyst for OPSVM
+    '''
+    if not service_running('plumgrid'):
+        restart_pg()
+    NS_ENTER = ('/opt/local/bin/nsenter -t $(ps ho pid --ppid $(cat '
+                '/var/run/libvirt/lxc/plumgrid.pid)) -m -n -u -i -p ')
+    sigmund_stop = NS_ENTER + '/usr/bin/service plumgrid-sigmund stop'
+    sigmund_status = NS_ENTER \
+        + '/usr/bin/service plumgrid-sigmund status'
+    sigmund_autoboot = NS_ENTER \
+        + '/usr/bin/sigmund-configure --ip {0} --start --autoboot' \
+        .format(config('opsvm-ip'))
+    try:
+        status = subprocess.check_output(sigmund_status, shell=True)
+        if 'start/running' in status:
+            if subprocess.call(sigmund_stop, shell=True):
+                log('plumgrid-sigmund couldn\'t be stopped!')
+                return
+        subprocess.check_call(sigmund_autoboot, shell=True)
+    except:
+        log('plumgrid-sigmund couldn\'t be started!')
 
 
 def determine_packages():
@@ -143,35 +159,6 @@ def determine_packages():
                     % (tag, pkg)
                 raise ValueError(error_msg)
     return pkgs
-
-
-def docker_dependencies():
-    '''
-    Returns a list of packages to be installed for docker engine
-    '''
-    kver = subprocess.check_output(['uname', '-r']).replace('\n', '')
-    return ['apt-transport-https', 'ca-certificates', 'apparmor',
-            'linux-image-extra-{}'.format(kver)]
-
-
-def docker_configure_sources():
-    '''
-    Imports GPG key and updates apt source for docker engine
-    '''
-    ubuntu_rel = lsb_release()['DISTRIB_CODENAME']
-    DOCKER_SOURCE = ('deb https://apt.dockerproject.org/repo ubuntu-%s'
-                     ' main')
-    log('Importing GPG Key for docker engine')
-    _exec_cmd(['apt-key', 'adv', '--keyserver',
-               'hkp://p80.pool.sks-keyservers.net:80',
-               '--recv-keys', '58118E89F3A912897C070ADBF76221572C52609D'])
-    try:
-        with open('/etc/apt/sources.list.d/docker.list', 'w') as f:
-            f.write(DOCKER_SOURCE % ubuntu_rel)
-        f.close()
-    except:
-        raise ValueError('Unable to update /etc/apt/sources.list.d/'
-                         'docker.list')
 
 
 def get_unit_address(binding='internal'):
@@ -221,55 +208,28 @@ def restart_pg():
     Stops and Starts PLUMgrid service after flushing iptables.
     '''
     stop_pg()
-    start_pg()
-    status, service = service_running_pg()
-    if not status:
-        if service_running('docker'):
-            raise ValueError("{} service couldn't be started!".format(service))
+    service_start('plumgrid')
+    time.sleep(3)
+    if not service_running('plumgrid'):
+        if service_running('libvirt-bin'):
+            raise ValueError("plumgrid service couldn't be started")
         else:
-            if service_start('docker'):
+            if service_start('libvirt-bin'):
                 time.sleep(8)
-                start_pg()
-                status, service = service_running_pg()
-                if not status:
-                    status_set('blocked', '{} service not \
-                               not running'.format(service))
-                    raise ValueError("{} service couldn't \
-                                     be started!".format(service))
+                if not service_running('plumgrid') \
+                        and not service_start('plumgrid'):
+                    raise ValueError("plumgrid service couldn't be started")
             else:
-                status_set('blocked', 'docker service not running')
-                raise ValueError("docker service couldn't be started!")
+                raise ValueError("libvirt-bin service couldn't be started")
     status_set('active', 'Unit is ready')
 
 
 def stop_pg():
     '''
-    Stops PLUMgrid services.
+    Stops PLUMgrid service.
     '''
-    for service in PG_DOCKERS:
-        service_stop(service)
-    time.sleep(5)
-
-
-def start_pg():
-    '''
-    Starts PLUMgrid services.
-    '''
-    for service in PG_DOCKERS:
-        service_start(service)
-    time.sleep(5)
-
-
-def service_running_pg():
-    '''
-    Returns a tuple comrising of status code '0' and PLUMgrid service
-    name that is stopped. Else it will return 1 as a status code and 1
-    in place of service name to maintain consistency in return values
-    '''
-    for service in PG_DOCKERS:
-        if not service_running(service):
-            return 0, service
-    return 1, 1
+    service_stop('plumgrid')
+    time.sleep(2)
 
 
 def load_iovisor():
@@ -558,11 +518,20 @@ def get_pg_ons_version():
     '''
     Returns PG ONS version installed
     '''
-    return _exec_cmd_output(
-        'dpkg -l | grep plumgrid | awk \'{print $3}\' | '
-        'sed \'s/-/./\' | cut -f1 -d"-"',
-        'Unable to obtain PG ONS version'
-    ).replace('\n', '')
+    package_version = ''
+    for pkg in neutron_plugin_attribute('plumgrid', 'packages', 'neutron'):
+        if 'plumgrid' in pkg:
+            try:
+                # Fetch plumgrid package version installed. If there are
+                # multiple plumgrid packages installed, first package will
+                # be used to fetch the version
+                package_version = apt_cache()[pkg].current_ver.ver_str
+                break
+            except:
+                log('Unable to find the installed package: {}. Posting Zone \
+                     Info to Solutions API server will fail.'.format(pkg))
+                return None
+    return package_version.replace('-', '.', 1).split('-')[0]
 
 
 def sapi_post_zone_info():

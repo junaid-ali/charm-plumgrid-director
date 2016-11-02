@@ -10,9 +10,9 @@ description: |
 tags:
   - openstack
 series:
+  - trusty
   - xenial
   - yakkety
-  #should I add trusty here as series too
 extra-bindings:
   internal:
   fabric:
