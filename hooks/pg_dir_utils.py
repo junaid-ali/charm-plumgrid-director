@@ -6,6 +6,7 @@ import pg_dir_context
 import subprocess
 import time
 import os
+import platform
 import json
 from collections import OrderedDict
 from socket import gethostname as get_unit_hostname
@@ -33,7 +34,8 @@ from charmhelpers.core.host import (
     service_stop,
     service_running,
     path_hash,
-    set_nic_mtu
+    set_nic_mtu,
+    lsb_release
 )
 from charmhelpers.fetch import (
     apt_cache,
@@ -50,17 +52,21 @@ from pg_dir_context import (
 
 SOURCES_LIST = '/etc/apt/sources.list'
 TEMPLATES = 'templates/'
-PG_LXC_DATA_PATH = '/var/lib/libvirt/filesystems/plumgrid-data'
+PG_DATA_PATH = '/var/lib/plumgrid/plumgrid-data'
+# TODO: this path should be updated once SOL-1261 is resolved
+# workaround: shouldn't set plumgrid-license-key via config
+# it will fail
 PG_LXC_PATH = '/var/lib/libvirt/filesystems/plumgrid'
-PG_CONF = '%s/conf/pg/plumgrid.conf' % PG_LXC_DATA_PATH
-PG_KA_CONF = '%s/conf/etc/keepalived.conf' % PG_LXC_DATA_PATH
-PG_DEF_CONF = '%s/conf/pg/nginx.conf' % PG_LXC_DATA_PATH
-PG_HN_CONF = '%s/conf/etc/hostname' % PG_LXC_DATA_PATH
-PG_HS_CONF = '%s/conf/etc/hosts' % PG_LXC_DATA_PATH
-PG_IFCS_CONF = '%s/conf/pg/ifcs.conf' % PG_LXC_DATA_PATH
-OPS_CONF = '%s/conf/etc/00-pg.conf' % PG_LXC_DATA_PATH
-AUTH_KEY_PATH = '%s/root/.ssh/authorized_keys' % PG_LXC_DATA_PATH
+PG_CONF = '%s/conf/pg/plumgrid.conf' % PG_DATA_PATH
+PG_KA_CONF = '%s/conf/etc/keepalived.conf' % PG_DATA_PATH
+PG_DEF_CONF = '%s/conf/pg/nginx.conf' % PG_DATA_PATH
+PG_HN_CONF = '%s/conf/etc/hostname' % PG_DATA_PATH
+PG_HS_CONF = '%s/conf/etc/hosts' % PG_DATA_PATH
+PG_IFCS_CONF = '%s/conf/pg/ifcs.conf' % PG_DATA_PATH
+OPS_CONF = '%s/conf/etc/00-pg.conf' % PG_DATA_PATH
+AUTH_KEY_PATH = '%s/root/.ssh/authorized_keys' % PG_DATA_PATH
 TEMP_LICENSE_FILE = '/tmp/license'
+IFC_LIST_GW = '/var/run/plumgrid/ifc_list_gateway'
 
 BASE_RESOURCE_MAP = OrderedDict([
     (PG_KA_CONF, {
@@ -93,6 +99,14 @@ BASE_RESOURCE_MAP = OrderedDict([
     }),
 ])
 
+PG_DOCKERS = [
+    'plumgrid-util',
+    'plumgrid-logger',
+    'plumgrid-core',
+    'plumgrid-sal',
+    'plumgrid'
+]
+
 
 def configure_pg_sources():
     '''
@@ -108,31 +122,6 @@ def configure_pg_sources():
         sources.close()
     except IOError:
         log('Unable to update /etc/apt/sources.list')
-
-
-def configure_analyst_opsvm():
-    '''
-    Configures Anaylyst for OPSVM
-    '''
-    if not service_running('plumgrid'):
-        restart_pg()
-    NS_ENTER = ('/opt/local/bin/nsenter -t $(ps ho pid --ppid $(cat '
-                '/var/run/libvirt/lxc/plumgrid.pid)) -m -n -u -i -p ')
-    sigmund_stop = NS_ENTER + '/usr/bin/service plumgrid-sigmund stop'
-    sigmund_status = NS_ENTER \
-        + '/usr/bin/service plumgrid-sigmund status'
-    sigmund_autoboot = NS_ENTER \
-        + '/usr/bin/sigmund-configure --ip {0} --start --autoboot' \
-        .format(config('opsvm-ip'))
-    try:
-        status = subprocess.check_output(sigmund_status, shell=True)
-        if 'start/running' in status:
-            if subprocess.call(sigmund_stop, shell=True):
-                log('plumgrid-sigmund couldn\'t be stopped!')
-                return
-        subprocess.check_call(sigmund_autoboot, shell=True)
-    except:
-        log('plumgrid-sigmund couldn\'t be started!')
 
 
 def determine_packages():
@@ -173,6 +162,35 @@ def get_unit_address(binding='internal'):
         return unit_get('private-address')
 
 
+def docker_dependencies():
+    '''
+    Returns a list of packages to be installed for docker engine
+    '''
+    kver = platform.release()
+    return ['apt-transport-https', 'ca-certificates', 'apparmor',
+            'linux-image-extra-{}'.format(kver)]
+
+
+def docker_configure_sources():
+    '''
+    Imports GPG key and updates apt source for docker engine
+    '''
+    ubuntu_rel = lsb_release()['DISTRIB_CODENAME']
+    DOCKER_SOURCE = ('deb https://apt.dockerproject.org/repo ubuntu-%s'
+                     ' main')
+    log('Importing GPG Key for docker engine')
+    _exec_cmd(['apt-key', 'adv', '--keyserver',
+               'hkp://p80.pool.sks-keyservers.net:80',
+               '--recv-keys', '58118E89F3A912897C070ADBF76221572C52609D'])
+    try:
+        with open('/etc/apt/sources.list.d/docker.list', 'w') as f:
+            f.write(DOCKER_SOURCE % ubuntu_rel)
+        f.close()
+    except:
+        raise ValueError('Unable to update /etc/apt/sources.list.d/'
+                         'docker.list')
+
+
 def register_configs(release=None):
     '''
     Returns an object of the Openstack Tempating Class which contains the
@@ -208,28 +226,55 @@ def restart_pg():
     Stops and Starts PLUMgrid service after flushing iptables.
     '''
     stop_pg()
-    service_start('plumgrid')
-    time.sleep(3)
-    if not service_running('plumgrid'):
-        if service_running('libvirt-bin'):
-            raise ValueError("plumgrid service couldn't be started")
+    start_pg()
+    status, service = service_running_pg()
+    if not status:
+        if service_running('docker'):
+            raise ValueError("{} service couldn't be started!".format(service))
         else:
-            if service_start('libvirt-bin'):
+            if service_start('docker'):
                 time.sleep(8)
-                if not service_running('plumgrid') \
-                        and not service_start('plumgrid'):
-                    raise ValueError("plumgrid service couldn't be started")
+                start_pg()
+                status, service = service_running_pg()
+                if not status:
+                    status_set('blocked', '{} service not \
+                               not running'.format(service))
+                    raise ValueError("{} service couldn't \
+                                     be started!".format(service))
             else:
-                raise ValueError("libvirt-bin service couldn't be started")
+                status_set('blocked', 'docker service not running')
+                raise ValueError("docker service couldn't be started!")
     status_set('active', 'Unit is ready')
 
 
 def stop_pg():
     '''
-    Stops PLUMgrid service.
+    Stops PLUMgrid services.
     '''
-    service_stop('plumgrid')
-    time.sleep(2)
+    for service in PG_DOCKERS:
+        service_stop(service)
+    time.sleep(5)
+
+
+def start_pg():
+    '''
+    Starts PLUMgrid services.
+    '''
+    for service in PG_DOCKERS:
+        service_start(service)
+    time.sleep(5)
+
+
+def service_running_pg():
+    '''
+    Returns a tuple comrising of status code '0' and PLUMgrid service
+    name that is stopped. Else it will return 1 as a status code and 1
+    in place of service name to maintain consistency in return values
+    '''
+    for service in PG_DOCKERS:
+        if not service_running(service):
+            return 0, service
+    return 1, 1
 
 
 def load_iovisor():
@@ -302,39 +347,48 @@ def fabric_interface_changed():
     return True
 
 
+def remove_ifc_list():
+    '''
+    Removes ifc_list_gateway file if fabric interface is changed
+    '''
+    _exec_cmd(cmd=['rm', '-f', IFC_LIST_GW])
+
+
 def get_fabric_interface():
     '''
     Returns the fabric interface.
     '''
     fabric_interfaces = config('fabric-interfaces')
-    if fabric_interfaces == 'MANAGEMENT':
-        return get_mgmt_interface()
-    elif fabric_interfaces == 'BIND':
+    if not fabric_interfaces:
         try:
-            return get_iface_from_addr(get_unit_address('fabric'))
+            fabric_ip = get_unit_address('fabric')
         except:
             raise ValueError('Unable to get interface using \'fabric\' \
                               binding! Ensure fabric interface has IP \
                               assigned.')
+        if fabric_ip == unit_get('private-address'):
+            return get_mgmt_interface()
+        else:
+            return get_iface_from_addr(fabric_ip)
     else:
         try:
             all_fabric_interfaces = json.loads(fabric_interfaces)
         except ValueError:
             raise ValueError('Invalid json provided for fabric interfaces')
-        hostname = get_unit_hostname()
-        if hostname in all_fabric_interfaces:
-            node_fabric_interface = all_fabric_interfaces[hostname]
-        elif 'DEFAULT' in all_fabric_interfaces:
-            node_fabric_interface = all_fabric_interfaces['DEFAULT']
-        else:
-            raise ValueError('No fabric interface provided for node')
-        if interface_exists(node_fabric_interface):
-            return node_fabric_interface
-        else:
-            log('Provided fabric interface %s does not exist'
-                % node_fabric_interface)
-            raise ValueError('Provided fabric interface does not exist')
+    hostname = get_unit_hostname()
+    if hostname in all_fabric_interfaces:
+        node_fabric_interface = all_fabric_interfaces[hostname]
+    elif 'DEFAULT' in all_fabric_interfaces:
+        node_fabric_interface = all_fabric_interfaces['DEFAULT']
+    else:
+        raise ValueError('No fabric interface provided for node')
+    if interface_exists(node_fabric_interface):
         return node_fabric_interface
+    else:
+        log('Provided fabric interface %s does not exist'
+            % node_fabric_interface)
+        raise ValueError('Provided fabric interface does not exist')
+    return node_fabric_interface
 
 
 def ensure_mtu():
@@ -544,7 +598,8 @@ def sapi_post_zone_info():
     sol_name = '"solution_name":"Ubuntu OpenStack"'
     # TODO: get the release using relations with pg-edge or
     # neutron-api-pg and then assign it to sol_version
-    # release = 'mitaka'
+    # As there is no solution version in Canonical OpenStack,
+    # setting a value '10' for now
     sol_version = 10
     sol_version = '"solution_version":"{}"'.format(sol_version)
     pg_ons_version = get_pg_ons_version()

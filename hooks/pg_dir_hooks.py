@@ -28,6 +28,7 @@ from charmhelpers.fetch import (
 from pg_dir_utils import (
     register_configs,
     restart_pg,
+    service_running_pg,
     restart_map,
     stop_pg,
     determine_packages,
@@ -40,12 +41,13 @@ from pg_dir_utils import (
     load_iptables,
     restart_on_change,
     director_cluster_ready,
+    docker_configure_sources,
     configure_pg_sources,
-    configure_analyst_opsvm,
     sapi_post_ips,
     sapi_post_license,
     sapi_post_zone_info,
-    get_unit_address
+    get_unit_address,
+    remove_ifc_list
 )
 
 hooks = Hooks()
@@ -59,6 +61,7 @@ def install():
     '''
     status_set('maintenance', 'Executing pre-install')
     load_iptables()
+    docker_configure_sources()
     configure_sources(update=True)
     status_set('maintenance', 'Installing apt packages')
     pkgs = determine_packages()
@@ -139,6 +142,7 @@ def config_changed():
             log("Fabric interface already set")
         else:
             stop_pg()
+            remove_ifc_list()
     if charm_config.changed('plumgrid-virtual-ip'):
         CONFIGS.write_all()
         for rid in relation_ids('plumgrid'):
@@ -190,7 +194,6 @@ def start():
     '''
     This hook is run when the charm is started.
     '''
-    configure_analyst_opsvm()
     if config('plumgrid-license-key') is not None:
         count = 0
         while (count < 10):
@@ -200,7 +203,7 @@ def start():
             time.sleep(15)
         if count == 10:
             raise ValueError("Error occurred while posting plumgrid license"
-                             "key. Please check plumgrid services.")
+                             " key. Please check plumgrid services.")
 
 
 @hooks.hook('upgrade-charm')
@@ -223,10 +226,11 @@ def stop():
 
 @hooks.hook('update-status')
 def update_status():
-    if service_running('plumgrid'):
+    status, service = service_running_pg()
+    if status:
         status_set('active', 'Unit is ready')
     else:
-        status_set('blocked', 'plumgrid service not running')
+        status_set('blocked', '{} service not running'.format(service))
 
 
 def main():
