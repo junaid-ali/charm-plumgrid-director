@@ -33,6 +33,7 @@ TO_PATCH = [
     'config',
     'load_iptables',
     'status_set',
+    'remove_ifc_list',
     'docker_configure_sources',
     'sapi_post_zone_info'
 ]

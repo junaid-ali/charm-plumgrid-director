@@ -46,7 +46,8 @@ from pg_dir_utils import (
     sapi_post_ips,
     sapi_post_license,
     sapi_post_zone_info,
-    get_unit_address
+    get_unit_address,
+    remove_ifc_list
 )
 
 hooks = Hooks()
@@ -122,8 +123,6 @@ def plumgrid_configs_joined(relation_id=None):
 
 
 @hooks.hook('config-changed')
-# TODO: Bilal's review on restart_on_change here
-@restart_on_change(restart_map())
 def config_changed():
     '''
     This hook is run when a config parameter is changed.
@@ -143,6 +142,7 @@ def config_changed():
             log("Fabric interface already set")
         else:
             stop_pg()
+            remove_ifc_list()
     if charm_config.changed('plumgrid-virtual-ip'):
         CONFIGS.write_all()
         for rid in relation_ids('plumgrid'):
