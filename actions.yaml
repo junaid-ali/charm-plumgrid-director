@@ -1,4 +1,4 @@
-restart-pg:
+restart-pg-service:
   description: Restart the plumgrid-director unit's service.
 sapi-post-ips:
   description: Post PLUMgrid nodes IPs to Solutions API server.

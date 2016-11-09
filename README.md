@@ -26,7 +26,7 @@ For plumgrid-director to work make the configuration in the neutron-api and neut
 
 # Known Limitations and Issues
 
-This charm currently doesn't support Ubuntu 16.04.
+This charm currently is in an initial phase in supporting Ubuntu 16.04.
 
 # Configuration
 

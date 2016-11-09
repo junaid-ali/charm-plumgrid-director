@@ -7,6 +7,9 @@ description: |
   The configuration of the virtual network infrastructure for tenants is
   done through the PLUMgrid Director. The PLUMgrid Director is typically
   co-located on the OpenStack controller nodes.
+series:
+  - xenial
+  - trusty
 tags:
   - openstack
 requires:

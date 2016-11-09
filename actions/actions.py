@@ -14,7 +14,7 @@ from pg_dir_utils import (
 )
 
 
-def restart_pg(args):
+def restart_pg_service(args):
     """
     Restart PLUMgrid services.
     """
@@ -44,8 +44,12 @@ def post_license(args):
 
 # A dictionary of all the defined actions to callables (which take
 # parsed arguments).
-ACTIONS = {"restart-pg": restart_pg, "sapi-post-ips": post_ips, "sapi-post-zone-info": post_zone_info,
-           "sapi-post-license": post_license}
+ACTIONS = {
+    "restart-pg-service": restart_pg_service,
+    "sapi-post-ips": post_ips,
+    "sapi-post-zone-info": post_zone_info,
+    "sapi-post-license": post_license
+}
 
 
 def main(args):

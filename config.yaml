@@ -17,6 +17,7 @@ options:
     description: Public SSH key of PLUMgrid LCM which is running PG-Tools.
   mgmt-interface:
     type: string
+    default:
     description: The interface connected to PLUMgrid Managment network.
   fabric-interfaces:
     default: 'MANAGEMENT'
