@@ -602,37 +602,27 @@ def sapi_post_zone_info():
     # release = 'mitaka'
     # As there is no solution version in Canonical OpenStack,
     # setting a value '10'
-    sol_version = 10
+    sol_version = lsb_release()['DISTRIB_RELEASE']
     sol_version = '"solution_version":"{}"'.format(sol_version)
     pg_ons_version = get_pg_ons_version()
     pg_ons_version = \
         '"pg_ons_version":"{}"'.format(pg_ons_version)
     hypervisor = '"hypervisor":"Ubuntu"'
-    hypervisor_version = \
-        _exec_cmd_output('lsb_release -r | awk \'{print $2}\'',
-                         'Unable to obtain solution version'
-                         ).replace('\n', '')
+    hypervisor_version = lsb_release()['DISTRIB_RELEASE']
     hypervisor_version = '"hypervisor_version":"{}"' \
                          .format(hypervisor_version)
-    kernel_version = _exec_cmd_output(
-        'uname -r',
-        'Unable to obtain kernal version').replace('\n', '')
+    kernel_version = platform.release()
     kernel_version = \
         '"kernel_version":"{}"'.format(kernel_version)
-    cloudapex_path = '/var/lib/libvirt/filesystems/plumgrid/' \
-                     'opt/pg/web/cloudApex/modules/appCloudApex' \
-                     '/appCloudApex.js'
-    if os.path.isfile(cloudapex_path):
-        pg_cloudapex_version = 'cat ' \
-            + '{}'.format(cloudapex_path) \
-            + ' | grep -i appversion | awk \'{print $2}\''
-        pg_cloudapex_version = \
-            _exec_cmd_output(pg_cloudapex_version,
-                             'Unable to retrieve CloudApex version'
-                             ).replace('\n', '')
-    else:
+    pg_cloudapex_version = 'docker exec -t plumgrid-util /usr/bin/dpkg '\
+        + '-l | grep plumgrid-cloud | awk ' \
+        + '\'{print $3}\' | tr \'-\' \' \' | awk \'{print $1}\''
+    pg_cloudapex_version = \
+        _exec_cmd_output(pg_cloudapex_version,
+                         'Unable to retrieve CloudApex version'
+                         ).replace('\n', '')
+    if not pg_cloudapex_version:
         log('CloudApex not installed!')
-        pg_cloudapex_version = ''
     pg_cloudapex_version = \
         '"pg_cloudapex_version":"{}"'.format(pg_cloudapex_version)
     JSON_ZONE_INFO = ','.join([
