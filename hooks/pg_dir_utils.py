@@ -597,11 +597,8 @@ def sapi_post_zone_info():
         log('Solutions API support is disabled!')
         return 1
     sol_name = '"solution_name":"Ubuntu OpenStack"'
-    # TODO: get the release using relations with pg-edge or
-    # neutron-api-pg and then assign it to sol_version
-    # release = 'mitaka'
     # As there is no solution version in Canonical OpenStack,
-    # setting a value '10'
+    # setting its value to release number of distribution
     sol_version = lsb_release()['DISTRIB_RELEASE']
     sol_version = '"solution_version":"{}"'.format(sol_version)
     pg_ons_version = get_pg_ons_version()
