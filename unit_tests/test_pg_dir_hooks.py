@@ -35,7 +35,8 @@ TO_PATCH = [
     'status_set',
     'remove_ifc_list',
     'docker_configure_sources',
-    'sapi_post_zone_info'
+    'sapi_post_zone_info',
+    'get_unit_address'
 ]
 NEUTRON_CONF_DIR = "/etc/neutron"
 
